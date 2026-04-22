@@ -224,16 +224,47 @@ class CLIPContrastiveModel(nn.Module):
         if torch.is_tensor(outputs):
             return outputs
 
+        embed_attr = f"{modality}_embeds"
+        embeds = getattr(outputs, embed_attr, None)
+        if torch.is_tensor(embeds):
+            return embeds
+
         pooler_output = getattr(outputs, "pooler_output", None)
         if torch.is_tensor(pooler_output):
-            return projection(pooler_output)
+            return CLIPContrastiveModel._project_if_needed(pooler_output, projection, modality)
 
         if isinstance(outputs, (tuple, list)):
             for item in outputs:
                 if torch.is_tensor(item) and item.ndim >= 2:
-                    return projection(item)
+                    return CLIPContrastiveModel._project_if_needed(item, projection, modality)
 
         raise TypeError(
             f"Unsupported {modality} feature output type: {type(outputs)!r}. "
             "Expected a tensor or an object containing pooler_output."
+        )
+
+    @staticmethod
+    def _project_if_needed(
+        tensor: Tensor,
+        projection: nn.Module,
+        modality: str,
+    ) -> Tensor:
+        in_features = getattr(projection, "in_features", None)
+        out_features = getattr(projection, "out_features", None)
+
+        if tensor.ndim < 2:
+            raise TypeError(
+                f"Unsupported {modality} feature tensor shape: {tuple(tensor.shape)}."
+            )
+
+        last_dim = tensor.shape[-1]
+        if in_features is not None and last_dim == in_features:
+            return projection(tensor)
+        if out_features is not None and last_dim == out_features:
+            return tensor
+
+        raise TypeError(
+            f"Unsupported {modality} feature tensor shape: {tuple(tensor.shape)}. "
+            f"Expected last dim to match projection in_features={in_features} "
+            f"or out_features={out_features}."
         )
