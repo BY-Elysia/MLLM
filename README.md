@@ -51,12 +51,16 @@ python3 main.py
 - `eval_batch_size`
 - `num_workers`
 - `val_ratio`
+- `save_every_epoch`
+- `save_optimizer_state`
 
 说明：
 
 - 路径统一按仓库根目录解析
 - 现在默认就是全量训练，不再保留抽样 demo 流程
 - `main.py` 会读取 `clip/config.json`，再调用 `clip/` 下的训练逻辑
+- 默认只保存 `best` checkpoint，不按 epoch 全量落盘
+- 默认不保存优化器状态，避免 checkpoint 过大
 
 ## 数据整理脚本
 

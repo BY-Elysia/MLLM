@@ -87,6 +87,7 @@ def build_training_namespace(config: dict[str, Any], repo_root: Path) -> Namespa
         max_length=int(normalized.get("max_length", 77)),
         log_interval=int(normalized.get("log_interval", 20)),
         save_every_epoch=bool(normalized.get("save_every_epoch", False)),
+        save_optimizer_state=bool(normalized.get("save_optimizer_state", False)),
         freeze_vision=bool(normalized.get("freeze_vision", False)),
         freeze_text=bool(normalized.get("freeze_text", False)),
         freeze_projection=bool(normalized.get("freeze_projection", False)),

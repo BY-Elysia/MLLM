@@ -43,6 +43,7 @@ python3 main.py
 - `max_length`
 - `log_interval`
 - `save_every_epoch`
+- `save_optimizer_state`
 - `freeze_vision`
 - `freeze_text`
 - `freeze_projection`
@@ -55,6 +56,8 @@ python3 main.py
 - 路径统一按仓库根目录解析
 - `val_annotations=null` 时，会按 `val_ratio` 从训练集切分验证集
 - `model_name` 可以是 Hugging Face 模型名，也可以是本地模型目录
+- 默认只保存 `best` checkpoint，不按 epoch 全量落盘
+- 默认不保存优化器状态，避免 `training_state.pt` 过大
 
 ## 数据准备
 

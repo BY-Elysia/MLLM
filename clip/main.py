@@ -114,6 +114,12 @@ def build_parser(defaults: Optional[dict[str, Any]] = None) -> argparse.Argument
         default=defaults.get("save_every_epoch", False),
     )
     parser.add_argument(
+        "--save-optimizer-state",
+        action=argparse.BooleanOptionalAction,
+        default=defaults.get("save_optimizer_state", False),
+        help="Whether to store optimizer and scheduler state in training_state.pt.",
+    )
+    parser.add_argument(
         "--freeze-vision",
         action=argparse.BooleanOptionalAction,
         default=defaults.get("freeze_vision", False),
@@ -356,6 +362,7 @@ def save_checkpoint(
     metrics: dict[str, float],
     is_best: bool = False,
     checkpoint_name: Optional[str] = None,
+    save_optimizer_state: bool = False,
 ) -> None:
     if checkpoint_name is None:
         checkpoint_name = "best" if is_best else f"epoch-{epoch:03d}"
@@ -364,18 +371,61 @@ def save_checkpoint(
 
     model.clip.save_pretrained(checkpoint_dir / "clip")
     processor.save_pretrained(checkpoint_dir / "processor")
-    torch.save(
-        {
-            "epoch": epoch,
-            "metrics": metrics,
-            "model_state_dict": model.state_dict(),
-            "optimizer_state_dict": optimizer.state_dict(),
-            "scheduler_state_dict": scheduler.state_dict(),
-            "normalize": model.normalize,
-            "max_logit_scale": model.max_logit_scale,
-        },
-        checkpoint_dir / "training_state.pt",
-    )
+    training_state = {
+        "epoch": epoch,
+        "metrics": metrics,
+        "normalize": model.normalize,
+        "max_logit_scale": model.max_logit_scale,
+    }
+    if save_optimizer_state:
+        training_state["optimizer_state_dict"] = optimizer.state_dict()
+        training_state["scheduler_state_dict"] = scheduler.state_dict()
+
+    state_path = checkpoint_dir / "training_state.pt"
+    temp_path = checkpoint_dir / "training_state.pt.tmp"
+    try:
+        torch.save(
+            training_state,
+            temp_path,
+            _use_new_zipfile_serialization=False,
+        )
+        temp_path.replace(state_path)
+    finally:
+        if temp_path.exists():
+            temp_path.unlink()
+
+
+def try_save_checkpoint(
+    *,
+    output_dir: Path,
+    model: CLIPContrastiveModel,
+    processor: Any,
+    optimizer: AdamW,
+    scheduler: CosineAnnealingLR,
+    epoch: int,
+    metrics: dict[str, float],
+    is_best: bool = False,
+    checkpoint_name: Optional[str] = None,
+    save_optimizer_state: bool = False,
+) -> bool:
+    try:
+        save_checkpoint(
+            output_dir=output_dir,
+            model=model,
+            processor=processor,
+            optimizer=optimizer,
+            scheduler=scheduler,
+            epoch=epoch,
+            metrics=metrics,
+            is_best=is_best,
+            checkpoint_name=checkpoint_name,
+            save_optimizer_state=save_optimizer_state,
+        )
+    except Exception as exc:
+        target_name = checkpoint_name or ("best" if is_best else f"epoch-{epoch:03d}")
+        log(f"Checkpoint save failed for {target_name}: {type(exc).__name__}: {exc}")
+        return False
+    return True
 
 
 def write_run_summary(
@@ -492,7 +542,7 @@ def run_training(args: argparse.Namespace) -> None:
             if val_metrics["loss"] < best_val_loss:
                 best_val_loss = val_metrics["loss"]
                 best_metrics = metrics
-                save_checkpoint(
+                try_save_checkpoint(
                     output_dir=args.output_dir,
                     model=model,
                     processor=processor,
@@ -501,10 +551,11 @@ def run_training(args: argparse.Namespace) -> None:
                     epoch=epoch,
                     metrics=metrics,
                     is_best=True,
+                    save_optimizer_state=args.save_optimizer_state,
                 )
 
         if args.save_every_epoch:
-            save_checkpoint(
+            try_save_checkpoint(
                 output_dir=args.output_dir,
                 model=model,
                 processor=processor,
@@ -513,11 +564,12 @@ def run_training(args: argparse.Namespace) -> None:
                 epoch=epoch,
                 metrics=metrics,
                 is_best=False,
+                save_optimizer_state=args.save_optimizer_state,
             )
 
     if val_loader is None and last_metrics is not None:
         best_metrics = last_metrics
-        save_checkpoint(
+        try_save_checkpoint(
             output_dir=args.output_dir,
             model=model,
             processor=processor,
@@ -526,7 +578,8 @@ def run_training(args: argparse.Namespace) -> None:
             epoch=args.epochs,
             metrics=last_metrics,
             checkpoint_name="final",
-                )
+            save_optimizer_state=args.save_optimizer_state,
+        )
 
     write_run_summary(
         output_dir=args.output_dir,
