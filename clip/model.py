@@ -79,9 +79,14 @@ class CLIPContrastiveModel(nn.Module):
         normalize: Optional[bool] = None,
         interpolate_pos_encoding: bool = False,
     ) -> Tensor:
-        image_embeds = self.clip.get_image_features(
+        image_outputs = self.clip.get_image_features(
             pixel_values=pixel_values,
             interpolate_pos_encoding=interpolate_pos_encoding,
+        )
+        image_embeds = self._coerce_feature_output(
+            outputs=image_outputs,
+            projection=self.clip.visual_projection,
+            modality="image",
         )
         return self._maybe_normalize(image_embeds, normalize)
 
@@ -92,10 +97,15 @@ class CLIPContrastiveModel(nn.Module):
         position_ids: Optional[Tensor] = None,
         normalize: Optional[bool] = None,
     ) -> Tensor:
-        text_embeds = self.clip.get_text_features(
+        text_outputs = self.clip.get_text_features(
             input_ids=input_ids,
             attention_mask=attention_mask,
             position_ids=position_ids,
+        )
+        text_embeds = self._coerce_feature_output(
+            outputs=text_outputs,
+            projection=self.clip.text_projection,
+            modality="text",
         )
         return self._maybe_normalize(text_embeds, normalize)
 
@@ -204,3 +214,26 @@ class CLIPContrastiveModel(nn.Module):
         if not normalize:
             return embeds
         return F.normalize(embeds, dim=-1)
+
+    @staticmethod
+    def _coerce_feature_output(
+        outputs: Tensor | tuple | object,
+        projection: nn.Module,
+        modality: str,
+    ) -> Tensor:
+        if torch.is_tensor(outputs):
+            return outputs
+
+        pooler_output = getattr(outputs, "pooler_output", None)
+        if torch.is_tensor(pooler_output):
+            return projection(pooler_output)
+
+        if isinstance(outputs, (tuple, list)):
+            for item in outputs:
+                if torch.is_tensor(item) and item.ndim >= 2:
+                    return projection(item)
+
+        raise TypeError(
+            f"Unsupported {modality} feature output type: {type(outputs)!r}. "
+            "Expected a tensor or an object containing pooler_output."
+        )
