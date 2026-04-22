@@ -408,8 +408,7 @@ def resolve_device(device_arg: Optional[str]) -> torch.device:
     return torch.device("cpu")
 
 
-def main() -> None:
-    args = parse_args()
+def run_training(args: argparse.Namespace) -> None:
     set_seed(args.seed)
     device = resolve_device(args.device)
     amp_enabled = not args.disable_amp
@@ -537,6 +536,11 @@ def main() -> None:
         best_metrics=best_metrics,
     )
     log("Training finished")
+
+
+def main() -> None:
+    args = parse_args()
+    run_training(args)
 
 
 if __name__ == "__main__":

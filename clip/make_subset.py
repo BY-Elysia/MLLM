@@ -13,39 +13,50 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def main() -> None:
-    args = parse_args()
+def make_subset(
+    input_path: str | Path,
+    output_path: str | Path,
+    limit: int = 64,
+    seed: int = 42,
+) -> dict[str, object]:
+    input_path = Path(input_path)
+    output_path = Path(output_path)
 
     rows = []
-    with args.input.open("r", encoding="utf-8") as f:
+    with input_path.open("r", encoding="utf-8") as f:
         for line in f:
             if line.strip():
                 rows.append(line)
 
     if not rows:
-        raise RuntimeError(f"No records found in {args.input}")
+        raise RuntimeError(f"No records found in {input_path}")
 
-    rng = random.Random(args.seed)
+    rng = random.Random(seed)
     rng.shuffle(rows)
 
-    subset = rows[: min(args.limit, len(rows))]
-    args.output.parent.mkdir(parents=True, exist_ok=True)
-    with args.output.open("w", encoding="utf-8") as f:
+    subset = rows[: min(limit, len(rows))]
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    with output_path.open("w", encoding="utf-8") as f:
         f.writelines(subset)
 
-    print(
-        json.dumps(
-            {
-                "input": str(args.input),
-                "output": str(args.output),
-                "limit": args.limit,
-                "written": len(subset),
-                "seed": args.seed,
-            },
-            ensure_ascii=False,
-            indent=2,
-        )
+    return {
+        "input": str(input_path),
+        "output": str(output_path),
+        "limit": limit,
+        "written": len(subset),
+        "seed": seed,
+    }
+
+
+def main() -> None:
+    args = parse_args()
+    result = make_subset(
+        input_path=args.input,
+        output_path=args.output,
+        limit=args.limit,
+        seed=args.seed,
     )
+    print(json.dumps(result, ensure_ascii=False, indent=2))
 
 
 if __name__ == "__main__":
