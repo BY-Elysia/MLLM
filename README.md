@@ -1,18 +1,18 @@
 # MLLM
 
-Minimal repository scaffold for preparing and fine-tuning a multimodal language model on the cleaned UReader subset.
+这是一个用于多模态大模型数据整理与微调准备的基础仓库，当前以清洗后的 UReader 子集为起点。
 
-## Remote
+## 远端仓库
 
-- GitHub: `https://github.com/BY-Elysia/MLLM.git`
+- GitHub：`https://github.com/BY-Elysia/MLLM.git`
 
-## Current Scope
+## 当前目标
 
-- Keep data-processing scripts under version control
-- Keep datasets, checkpoints, and experiment outputs out of git
-- Start from the available `4229` image-text samples that were already cleaned locally
+- 将数据处理脚本纳入版本控制
+- 不把原始数据、训练产物和模型权重提交到 git
+- 先基于本地已清洗完成的 `4229` 条图文样本开展后续训练准备
 
-## Repository Layout
+## 仓库结构
 
 ```text
 MLLM/
@@ -27,26 +27,26 @@ MLLM/
 └── outputs/
 ```
 
-## Included Scripts
+## 已包含脚本
 
 - `scripts/prepare_ureader_kg.py`
-  - Repairs malformed fragments in `ureader_kg_processed.json`
-  - Exports JSONL
-  - Optionally filters out samples whose images are missing
+  - 修复 `ureader_kg_processed.json` 中损坏的片段
+  - 导出清洗后的 `JSONL`
+  - 可选过滤掉缺失图片的样本
 - `scripts/organize_existing_subset.py`
-  - Copies the currently usable image subset into a local dataset directory
-  - Rewrites annotation paths to the copied local images
+  - 将当前可用图片子集复制到本地数据集目录
+  - 将标注中的图片路径重写为复制后的本地相对路径
 
-## Recommended Workflow
+## 推荐流程
 
-1. Place the raw annotation JSON and image folders on local disk.
-2. Run `prepare_ureader_kg.py` to create a cleaned JSONL manifest.
-3. Run `organize_existing_subset.py` to copy the usable subset into a training-ready local directory.
-4. Build the training loader for the target model family such as `Qwen2.5-VL`, `InternVL`, or `LLaVA`.
+1. 将原始标注 `JSON` 和图片目录准备到本地磁盘。
+2. 运行 `prepare_ureader_kg.py` 生成清洗后的 `JSONL` 清单。
+3. 运行 `organize_existing_subset.py` 把可用子集整理成训练可读的本地目录。
+4. 再按目标模型补上数据加载器和训练入口，例如 `Qwen2.5-VL`、`InternVL` 或 `LLaVA`。
 
-## Example Commands
+## 示例命令
 
-Clean and export a JSONL manifest:
+清洗并导出 `JSONL`：
 
 ```bash
 python3 scripts/prepare_ureader_kg.py \
@@ -57,7 +57,7 @@ python3 scripts/prepare_ureader_kg.py \
   --summary-json outputs/summary_existing_only.json
 ```
 
-Organize the usable subset into a local dataset directory:
+整理当前可用子集到本地数据集目录：
 
 ```bash
 python3 scripts/organize_existing_subset.py \
@@ -66,8 +66,7 @@ python3 scripts/organize_existing_subset.py \
   --output-dir datasets/ureader_existing_local
 ```
 
-## Notes
+## 说明
 
-- The repository is initialized for code and metadata, not for committing raw images or model weights.
-- If you later want to train directly from this repo, the next sensible addition is a model-specific dataset loader and training entrypoint.
-
+- 这个仓库当前用于管理代码和元数据，不用于提交原始图片或模型权重。
+- 如果后续要直接在这个仓库里启动训练，下一步最合理的补充是模型专用的 `dataset loader` 和训练脚本。
