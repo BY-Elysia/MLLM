@@ -58,6 +58,8 @@ MLLM/
   - CLIP 的训练与验证入口，支持随机切分或显式 `train/val` 标注
 - `clip/README.md`
   - 说明从原始数据清洗到 CLIP 训练和 checkpoint 输出的完整流程
+- `clip/configs/*.json`
+  - CLIP 的训练配置文件，减少长命令注入
 
 ## 推荐流程
 

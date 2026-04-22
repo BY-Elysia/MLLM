@@ -17,6 +17,9 @@
   - 支持单个标注文件随机划分训练/验证集
   - 也支持显式传入独立的验证集标注
   - 负责 checkpoint 和训练摘要输出
+- `clip/configs/*.json`
+  - 训练配置文件
+  - 路径、模型、batch size、epoch、日志频率等都可以放在这里
 
 ## 整体数据流
 
@@ -156,7 +159,22 @@ datasets/ureader_existing_local/
 
 ## 第五步：启动训练
 
-在仓库根目录执行：
+在仓库根目录执行。现在推荐优先使用配置文件：
+
+```bash
+python3 -u -m clip.main --config clip/configs/small_demo.json
+```
+
+也可以继续用命令行参数覆盖配置文件里的值：
+
+```bash
+python3 -u -m clip.main \
+  --config clip/configs/small_demo.json \
+  --epochs 3 \
+  --batch-size 16
+```
+
+完整命令行方式依然可用：
 
 ```bash
 python3 -m clip.main \
@@ -185,15 +203,16 @@ python3 -m clip.main \
 `clip/main.py` 的流程是：
 
 1. 读取命令行参数
-2. 加载 `AutoProcessor`
-3. 构造 `CLIPJsonlDataset`
-4. 如果没有显式验证集，就按 `val-ratio` 随机切分
-5. 构造 `DataLoader`
-6. 加载 `CLIPContrastiveModel`
-7. 建立优化器 `AdamW`
-8. 用余弦退火学习率调度器训练
-9. 每个 epoch 输出 loss / image_acc / text_acc
-10. 保存 checkpoint 和训练摘要
+2. 如果提供了 `--config`，先加载 JSON 配置
+3. 加载 `AutoProcessor`
+4. 构造 `CLIPJsonlDataset`
+5. 如果没有显式验证集，就按 `val-ratio` 随机切分
+6. 构造 `DataLoader`
+7. 加载 `CLIPContrastiveModel`
+8. 建立优化器 `AdamW`
+9. 用余弦退火学习率调度器训练
+10. 每个 epoch 输出 loss / image_acc / text_acc
+11. 保存 checkpoint 和训练摘要
 
 ## 训练输出
 

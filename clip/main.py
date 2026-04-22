@@ -26,58 +26,136 @@ def log(message: str) -> None:
     print(f"[{timestamp}] {message}", flush=True)
 
 
-def parse_args() -> argparse.Namespace:
+def load_config(config_path: Path) -> dict[str, Any]:
+    with config_path.open("r", encoding="utf-8") as f:
+        data = json.load(f)
+    if not isinstance(data, dict):
+        raise TypeError(f"Config file must contain a JSON object: {config_path}")
+    return data
+
+
+def path_default(defaults: dict[str, Any], key: str) -> Optional[Path]:
+    value = defaults.get(key)
+    if value in (None, ""):
+        return None
+    return Path(value)
+
+
+def build_parser(defaults: Optional[dict[str, Any]] = None) -> argparse.ArgumentParser:
+    defaults = defaults or {}
     parser = argparse.ArgumentParser(description="Train or evaluate a CLIP contrastive model.")
     parser.add_argument(
-        "--train-annotations",
-        required=True,
+        "--config",
         type=Path,
+        default=None,
+        help="Optional JSON config file. CLI arguments override config values.",
+    )
+    parser.add_argument(
+        "--train-annotations",
+        type=Path,
+        default=path_default(defaults, "train_annotations"),
         help="Path to the training JSONL annotations.",
     )
     parser.add_argument(
         "--dataset-root",
         type=Path,
-        default=None,
+        default=path_default(defaults, "dataset_root"),
         help="Optional root directory used to resolve relative image paths.",
     )
     parser.add_argument(
         "--val-annotations",
         type=Path,
-        default=None,
+        default=path_default(defaults, "val_annotations"),
         help="Optional validation JSONL annotations. If omitted, the train set is split.",
     )
     parser.add_argument(
         "--text-mode",
         type=str,
-        default="assistant",
+        default=defaults.get("text_mode", "assistant"),
         choices=["assistant", "user", "qa", "assistant_with_question"],
         help="How to build the text paired with each image.",
     )
     parser.add_argument(
         "--model-name",
         type=str,
-        default="openai/clip-vit-base-patch32",
+        default=defaults.get("model_name", "openai/clip-vit-base-patch32"),
         help="Hugging Face model name or local path.",
     )
-    parser.add_argument("--output-dir", type=Path, default=Path("outputs/clip"))
-    parser.add_argument("--epochs", type=int, default=5)
-    parser.add_argument("--batch-size", type=int, default=32)
-    parser.add_argument("--eval-batch-size", type=int, default=32)
-    parser.add_argument("--num-workers", type=int, default=4)
-    parser.add_argument("--learning-rate", type=float, default=5e-5)
-    parser.add_argument("--weight-decay", type=float, default=0.01)
-    parser.add_argument("--val-ratio", type=float, default=0.1)
-    parser.add_argument("--seed", type=int, default=42)
-    parser.add_argument("--max-length", type=int, default=77)
-    parser.add_argument("--log-interval", type=int, default=20)
-    parser.add_argument("--save-every-epoch", action="store_true")
-    parser.add_argument("--freeze-vision", action="store_true")
-    parser.add_argument("--freeze-text", action="store_true")
-    parser.add_argument("--freeze-projection", action="store_true")
-    parser.add_argument("--freeze-logit-scale", action="store_true")
-    parser.add_argument("--disable-amp", action="store_true")
-    parser.add_argument("--device", type=str, default=None)
-    return parser.parse_args()
+    parser.add_argument(
+        "--output-dir",
+        type=Path,
+        default=path_default(defaults, "output_dir") or Path("outputs/clip"),
+    )
+    parser.add_argument("--epochs", type=int, default=defaults.get("epochs", 5))
+    parser.add_argument("--batch-size", type=int, default=defaults.get("batch_size", 32))
+    parser.add_argument(
+        "--eval-batch-size",
+        type=int,
+        default=defaults.get("eval_batch_size", 32),
+    )
+    parser.add_argument("--num-workers", type=int, default=defaults.get("num_workers", 4))
+    parser.add_argument(
+        "--learning-rate",
+        type=float,
+        default=defaults.get("learning_rate", 5e-5),
+    )
+    parser.add_argument(
+        "--weight-decay",
+        type=float,
+        default=defaults.get("weight_decay", 0.01),
+    )
+    parser.add_argument("--val-ratio", type=float, default=defaults.get("val_ratio", 0.1))
+    parser.add_argument("--seed", type=int, default=defaults.get("seed", 42))
+    parser.add_argument("--max-length", type=int, default=defaults.get("max_length", 77))
+    parser.add_argument("--log-interval", type=int, default=defaults.get("log_interval", 20))
+    parser.add_argument(
+        "--save-every-epoch",
+        action=argparse.BooleanOptionalAction,
+        default=defaults.get("save_every_epoch", False),
+    )
+    parser.add_argument(
+        "--freeze-vision",
+        action=argparse.BooleanOptionalAction,
+        default=defaults.get("freeze_vision", False),
+    )
+    parser.add_argument(
+        "--freeze-text",
+        action=argparse.BooleanOptionalAction,
+        default=defaults.get("freeze_text", False),
+    )
+    parser.add_argument(
+        "--freeze-projection",
+        action=argparse.BooleanOptionalAction,
+        default=defaults.get("freeze_projection", False),
+    )
+    parser.add_argument(
+        "--freeze-logit-scale",
+        action=argparse.BooleanOptionalAction,
+        default=defaults.get("freeze_logit_scale", False),
+    )
+    parser.add_argument(
+        "--disable-amp",
+        action=argparse.BooleanOptionalAction,
+        default=defaults.get("disable_amp", False),
+    )
+    parser.add_argument("--device", type=str, default=defaults.get("device"))
+    return parser
+
+
+def parse_args() -> argparse.Namespace:
+    config_parser = argparse.ArgumentParser(add_help=False)
+    config_parser.add_argument("--config", type=Path, default=None)
+    config_args, remaining = config_parser.parse_known_args()
+
+    defaults = {}
+    if config_args.config is not None:
+        defaults = load_config(config_args.config)
+
+    parser = build_parser(defaults=defaults)
+    args = parser.parse_args()
+    if args.train_annotations is None:
+        parser.error("--train-annotations is required unless provided in --config")
+    return args
 
 
 def set_seed(seed: int) -> None:

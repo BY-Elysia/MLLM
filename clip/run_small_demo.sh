@@ -10,6 +10,7 @@ DATASET_ROOT="${1:-/home/by/workspace/ureader_tools/dataset_existing_local}"
 TRAIN_JSONL="${DATASET_ROOT}/annotations/train.jsonl"
 DEMO_DIR="${REPO_ROOT}/outputs/clip_small_demo"
 SMALL_JSONL="${DEMO_DIR}/train_small.jsonl"
+CONFIG_PATH="${2:-${REPO_ROOT}/clip/configs/small_demo.json}"
 
 python3 "${SCRIPT_DIR}/make_subset.py" \
   --input "${TRAIN_JSONL}" \
@@ -17,16 +18,4 @@ python3 "${SCRIPT_DIR}/make_subset.py" \
   --limit 64 \
   --seed 42
 
-python3 -u -m clip.main \
-  --train-annotations "${SMALL_JSONL}" \
-  --dataset-root "${DATASET_ROOT}" \
-  --output-dir "${DEMO_DIR}/run" \
-  --model-name "openai/clip-vit-base-patch32" \
-  --text-mode assistant \
-  --epochs 1 \
-  --batch-size 8 \
-  --eval-batch-size 8 \
-  --val-ratio 0.2 \
-  --num-workers 0 \
-  --log-interval 1 \
-  --save-every-epoch
+python3 -u -m clip.main --config "${CONFIG_PATH}"
