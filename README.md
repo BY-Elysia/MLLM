@@ -18,6 +18,11 @@
 MLLM/
 ├── README.md
 ├── .gitignore
+├── clip/
+│   ├── __init__.py
+│   ├── data.py
+│   ├── main.py
+│   └── model.py
 ├── scripts/
 │   ├── prepare_ureader_kg.py
 │   └── organize_existing_subset.py
@@ -36,6 +41,23 @@ MLLM/
 - `scripts/organize_existing_subset.py`
   - 将当前可用图片子集复制到本地数据集目录
   - 将标注中的图片路径重写为复制后的本地相对路径
+
+## 模型目录约定
+
+- 每种模型单独放在自己的目录下，例如 `clip/`
+- 每个模型目录后续可以独立维护自己的 `model / data / main`
+- 公共的数据清洗脚本暂时仍放在 `scripts/`，模型专属数据流放到对应模型目录
+
+## 当前 CLIP 目录
+
+- `clip/model.py`
+  - 基于 `transformers.CLIPModel` 的对比学习封装
+- `clip/data.py`
+  - 读取 `JSONL` 标注并构造成 CLIP 专用图文样本
+- `clip/main.py`
+  - CLIP 的训练与验证入口，支持随机切分或显式 `train/val` 标注
+- `clip/README.md`
+  - 说明从原始数据清洗到 CLIP 训练和 checkpoint 输出的完整流程
 
 ## 推荐流程
 
