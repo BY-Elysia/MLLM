@@ -21,6 +21,11 @@ except ImportError:
     from model import CLIPContrastiveModel
 
 
+def log(message: str) -> None:
+    timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
+    print(f"[{timestamp}] {message}", flush=True)
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Train or evaluate a CLIP contrastive model.")
     parser.add_argument(
@@ -331,10 +336,17 @@ def main() -> None:
     device = resolve_device(args.device)
     amp_enabled = not args.disable_amp
 
+    log(f"Using device: {device}")
+    log(f"Loading processor from {args.model_name}")
     processor = AutoProcessor.from_pretrained(args.model_name)
+
+    log("Building datasets")
     train_dataset, val_dataset = build_datasets(args)
+
+    log("Building dataloaders")
     train_loader, val_loader = build_dataloaders(train_dataset, val_dataset, processor, args)
 
+    log(f"Loading CLIP model from {args.model_name}")
     model = CLIPContrastiveModel.from_pretrained(
         args.model_name,
         train_vision=not args.freeze_vision,
@@ -366,13 +378,14 @@ def main() -> None:
     best_val_loss = math.inf
     last_metrics = None
 
-    print(
+    log(
         f"device={device} train_samples={len(train_dataset)} "
         f"val_samples={0 if val_dataset is None else len(val_dataset)} "
         f"model={args.model_name}"
     )
 
     for epoch in range(1, args.epochs + 1):
+        log(f"Starting epoch {epoch}/{args.epochs}")
         train_metrics = run_epoch(
             model=model,
             loader=train_loader,
@@ -436,7 +449,7 @@ def main() -> None:
             epoch=args.epochs,
             metrics=last_metrics,
             checkpoint_name="final",
-        )
+                )
 
     write_run_summary(
         output_dir=args.output_dir,
@@ -445,6 +458,7 @@ def main() -> None:
         val_size=0 if val_dataset is None else len(val_dataset),
         best_metrics=best_metrics,
     )
+    log("Training finished")
 
 
 if __name__ == "__main__":
