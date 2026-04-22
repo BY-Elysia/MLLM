@@ -5,7 +5,16 @@ from pathlib import Path
 from typing import Any
 
 from clip.main import run_training
-from clip.make_subset import make_subset
+
+
+REPO_ROOT = Path(__file__).resolve().parent
+DEFAULT_CONFIG_PATH = REPO_ROOT / "clip" / "config.json"
+PATH_KEYS = {
+    "train_annotations",
+    "dataset_root",
+    "val_annotations",
+    "output_dir",
+}
 
 
 def parse_args() -> argparse.Namespace:
@@ -13,8 +22,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--config",
         type=Path,
-        default=Path("config.json"),
-        help="Path to the single experiment config file.",
+        default=DEFAULT_CONFIG_PATH,
+        help="Path to the experiment config file.",
     )
     return parser.parse_args()
 
@@ -27,91 +36,71 @@ def load_config(config_path: Path) -> dict[str, Any]:
     return data
 
 
-def resolve_path(base_dir: Path, value: Any) -> Path | None:
+def resolve_path(repo_root: Path, value: Any) -> Path | None:
     if value in (None, ""):
         return None
     path = Path(str(value))
     if path.is_absolute():
         return path
-    return (base_dir / path).resolve()
+    return (repo_root / path).resolve()
 
 
-def resolve_model_name(base_dir: Path, value: Any) -> str:
+def resolve_model_name(repo_root: Path, value: Any) -> str:
     if value in (None, ""):
-        raise ValueError("train.model_name is required.")
+        raise ValueError("model_name is required.")
     raw = str(value)
-    candidate = (base_dir / raw).resolve()
+    candidate = (repo_root / raw).resolve()
     if candidate.exists():
         return str(candidate)
     return raw
 
 
 def build_training_namespace(config: dict[str, Any], repo_root: Path) -> Namespace:
-    if str(config.get("task", "clip")).strip().lower() != "clip":
-        raise ValueError("Only task='clip' is supported right now.")
+    if "train_annotations" not in config:
+        raise ValueError("train_annotations is required in the config file.")
 
-    subset_cfg = config.get("subset") or {}
-    train_cfg = config.get("train") or {}
+    normalized: dict[str, Any] = {}
+    for key, value in config.items():
+        if key in PATH_KEYS:
+            normalized[key] = resolve_path(repo_root, value)
+        elif key == "model_name":
+            normalized[key] = resolve_model_name(repo_root, value)
+        else:
+            normalized[key] = value
 
-    if not isinstance(subset_cfg, dict) or not isinstance(train_cfg, dict):
-        raise TypeError("Config sections 'subset' and 'train' must be JSON objects.")
-
-    train_annotations = resolve_path(repo_root, train_cfg.get("train_annotations"))
-
-    if bool(subset_cfg.get("enabled", False)):
-        source_annotations = resolve_path(repo_root, subset_cfg.get("source_annotations"))
-        output_annotations = resolve_path(repo_root, subset_cfg.get("output_annotations"))
-        if source_annotations is None or output_annotations is None:
-            raise ValueError(
-                "subset.source_annotations and subset.output_annotations are required when subset.enabled=true."
-            )
-        subset_result = make_subset(
-            input_path=source_annotations,
-            output_path=output_annotations,
-            limit=int(subset_cfg.get("limit", 64)),
-            seed=int(subset_cfg.get("seed", 42)),
-        )
-        print(json.dumps(subset_result, ensure_ascii=False, indent=2), flush=True)
-        train_annotations = output_annotations
-
-    if train_annotations is None:
-        raise ValueError("train.train_annotations is required.")
-
-    args = Namespace(
+    return Namespace(
         config=None,
-        train_annotations=train_annotations,
-        dataset_root=resolve_path(repo_root, train_cfg.get("dataset_root")),
-        val_annotations=resolve_path(repo_root, train_cfg.get("val_annotations")),
-        text_mode=str(train_cfg.get("text_mode", "assistant")),
-        model_name=resolve_model_name(repo_root, train_cfg.get("model_name")),
-        output_dir=resolve_path(repo_root, train_cfg.get("output_dir")) or (repo_root / "outputs/clip"),
-        epochs=int(train_cfg.get("epochs", 5)),
-        batch_size=int(train_cfg.get("batch_size", 32)),
-        eval_batch_size=int(train_cfg.get("eval_batch_size", 32)),
-        num_workers=int(train_cfg.get("num_workers", 4)),
-        learning_rate=float(train_cfg.get("learning_rate", 5e-5)),
-        weight_decay=float(train_cfg.get("weight_decay", 0.01)),
-        val_ratio=float(train_cfg.get("val_ratio", 0.1)),
-        seed=int(train_cfg.get("seed", 42)),
-        max_length=int(train_cfg.get("max_length", 77)),
-        log_interval=int(train_cfg.get("log_interval", 20)),
-        save_every_epoch=bool(train_cfg.get("save_every_epoch", False)),
-        freeze_vision=bool(train_cfg.get("freeze_vision", False)),
-        freeze_text=bool(train_cfg.get("freeze_text", False)),
-        freeze_projection=bool(train_cfg.get("freeze_projection", False)),
-        freeze_logit_scale=bool(train_cfg.get("freeze_logit_scale", False)),
-        disable_amp=bool(train_cfg.get("disable_amp", False)),
-        device=train_cfg.get("device"),
+        train_annotations=normalized["train_annotations"],
+        dataset_root=normalized.get("dataset_root"),
+        val_annotations=normalized.get("val_annotations"),
+        text_mode=str(normalized.get("text_mode", "assistant")),
+        model_name=normalized.get("model_name", "openai/clip-vit-base-patch32"),
+        output_dir=normalized.get("output_dir") or (repo_root / "outputs/clip"),
+        epochs=int(normalized.get("epochs", 5)),
+        batch_size=int(normalized.get("batch_size", 32)),
+        eval_batch_size=int(normalized.get("eval_batch_size", 32)),
+        num_workers=int(normalized.get("num_workers", 4)),
+        learning_rate=float(normalized.get("learning_rate", 5e-5)),
+        weight_decay=float(normalized.get("weight_decay", 0.01)),
+        val_ratio=float(normalized.get("val_ratio", 0.1)),
+        seed=int(normalized.get("seed", 42)),
+        max_length=int(normalized.get("max_length", 77)),
+        log_interval=int(normalized.get("log_interval", 20)),
+        save_every_epoch=bool(normalized.get("save_every_epoch", False)),
+        freeze_vision=bool(normalized.get("freeze_vision", False)),
+        freeze_text=bool(normalized.get("freeze_text", False)),
+        freeze_projection=bool(normalized.get("freeze_projection", False)),
+        freeze_logit_scale=bool(normalized.get("freeze_logit_scale", False)),
+        disable_amp=bool(normalized.get("disable_amp", False)),
+        device=normalized.get("device"),
     )
-    return args
 
 
 def main() -> None:
     cli_args = parse_args()
     config_path = cli_args.config.resolve()
-    repo_root = config_path.parent.resolve()
     config = load_config(config_path)
-    training_args = build_training_namespace(config, repo_root=repo_root)
+    training_args = build_training_namespace(config, repo_root=REPO_ROOT)
     run_training(training_args)
 
 
