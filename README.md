@@ -1,12 +1,26 @@
 # MLLM
 
 这个仓库用于管理多模态训练代码与数据整理脚本，当前先落地了一套 `CLIP` 训练链路。
+现在也支持 `BLIP-2` 的两条训练链路：
+
+- `stage1`
+  - 更接近论文第一阶段
+  - `ITC + ITM + ITG`
+- `stage2`
+  - 更接近论文第二阶段
+  - `Q-Former + frozen LLM`
 
 ## 当前结构
 
 ```text
 MLLM/
 ├── main.py
+├── blip2/
+│   ├── config.json
+│   ├── main.py
+│   ├── model.py
+│   ├── stage2_config.json
+│   └── README.md
 ├── clip/
 │   ├── config.json
 │   ├── data.py
@@ -61,6 +75,34 @@ python3 main.py
 - `main.py` 会读取 `clip/config.json`，再调用 `clip/` 下的训练逻辑
 - 默认只保存 `best` checkpoint，不按 epoch 全量落盘
 - 默认不保存优化器状态，避免 checkpoint 过大
+
+## BLIP-2 的使用方式
+
+`stage1`：
+
+1. 修改 [blip2/config.json](/home/by/workspace/MLLM/blip2/config.json:1)
+2. 在仓库根目录运行：
+
+```bash
+python3 main.py --config blip2/config.json
+```
+
+`stage2`：
+
+1. 修改 [blip2/stage2_config.json](/home/by/workspace/MLLM/blip2/stage2_config.json:1)
+2. 在仓库根目录运行：
+
+```bash
+python3 main.py --config blip2/stage2_config.json
+```
+
+说明：
+
+- `main.py` 会根据 `model_family` 或配置文件目录自动选择 `clip` / `blip2`
+- `blip2` 当前支持 `stage1 / stage2`
+- `stage1` 基于 `Blip2ForImageTextRetrieval` 并补齐更接近论文的第一阶段损失
+- `stage2` 基于 `Blip2ForConditionalGeneration`
+- 数据读取仍然复用现有 JSONL 图文对格式
 
 ## 数据整理脚本
 
